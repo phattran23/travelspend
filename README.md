@@ -46,3 +46,6 @@ npm run cf:deploy                              # → https://travelspend.<your-s
 ```
 
 Local Worker dev: `npx wrangler d1 execute travelspend --local --file=worker/schema.sql && npm run cf:dev`.
+
+## Documentation
+- [Hướng dẫn sử dụng & bảo trì (Tiếng Việt)](docs/HUONG_DAN.md)
