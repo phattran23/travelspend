@@ -1,0 +1,9 @@
+{
+  "name": "travelspend",
+  "version": "1.0.0",
+  "description": "Travel budget & expense tracker in VND",
+  "private": true,
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.5" }
+}
