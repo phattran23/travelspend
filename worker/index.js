@@ -130,6 +130,7 @@ const detailById = async (c, id) => tripDetail(c.env, await getTrip(c, id));
 async function saveReceipt(env, r) {
   if (!r || typeof r !== 'object') throw bad('Invalid receipt');
   const ext = RECEIPT_TYPES[r.type];
+  if (!env.RECEIPTS) throw bad('Receipt uploads are not enabled yet (R2 storage is not set up). You can still save the expense without a receipt.');
   if (!ext) throw bad('Receipt must be an image (JPG, PNG, WebP, GIF) or PDF');
   if (typeof r.data !== 'string' || r.data.length * 0.75 > MAX_RECEIPT) throw bad('Receipt must be smaller than 5 MB');
   let bytes;
@@ -139,7 +140,7 @@ async function saveReceipt(env, r) {
   await env.RECEIPTS.put(file, bytes, { httpMetadata: { contentType: r.type } });
   return { file, name: str(String(r.name || 'receipt'), { max: 120, min: 1, field: 'receipt name' }), type: r.type };
 }
-const removeReceipt = (env, file) => (file ? env.RECEIPTS.delete(file).catch(() => {}) : undefined);
+const removeReceipt = (env, file) => (file && env.RECEIPTS ? env.RECEIPTS.delete(file).catch(() => {}) : undefined);
 
 async function expenseFields(env, body, tripId) {
   const { results } = await env.DB.prepare('SELECT id FROM travelers WHERE trip_id = ?').bind(tripId).all();
@@ -373,7 +374,7 @@ route('DELETE', '/api/expenses/(\\d+)', async (c) => {
 route('GET', '/api/expenses/(\\d+)/receipt', async (c) => {
   const e = await getExpense(c, c.params[0]);
   if (!e.receipt_file) throw new HttpError(404, 'No receipt');
-  const obj = await c.env.RECEIPTS.get(e.receipt_file);
+  const obj = c.env.RECEIPTS ? await c.env.RECEIPTS.get(e.receipt_file) : null;
   if (!obj) throw new HttpError(404, 'Receipt file missing');
   return new Response(obj.body, {
     headers: {

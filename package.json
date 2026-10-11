@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "cf:setup": "node scripts/cf-setup.mjs",
     "cf:dev": "wrangler dev",
     "cf:db": "wrangler d1 execute travelspend --remote --file=worker/schema.sql",
     "cf:deploy": "wrangler deploy"
