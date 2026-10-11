@@ -32,3 +32,17 @@ node server.js          # http://localhost:3000
 
 ## Deploying
 Host on any Node host with a persistent disk (Render, Railway, Fly.io) and set `DATA_DIR` to the mounted volume.
+
+## Deploy to Cloudflare (Workers + D1 + R2)
+The `worker/` folder is a Cloudflare port of `server.js` (same API); `public/` is served as static assets.
+
+```bash
+npm install
+npx wrangler login
+npx wrangler d1 create travelspend            # copy the database_id into wrangler.jsonc
+npx wrangler r2 bucket create travelspend-receipts
+npm run cf:db                                  # create tables in D1
+npm run cf:deploy                              # → https://travelspend.<your-subdomain>.workers.dev
+```
+
+Local Worker dev: `npx wrangler d1 execute travelspend --local --file=worker/schema.sql && npm run cf:dev`.

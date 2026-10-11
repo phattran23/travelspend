@@ -450,6 +450,7 @@ function serveStatic(req, res, pathname) {
   if (rel === '/') rel = '/index.html';
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 403, { error: 'Forbidden' });
+  if (path.basename(file).startsWith('_')) return send(res, 404, { error: 'Not found' }); // Cloudflare config files (_headers)
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send(res, 404, { error: 'Not found' });
     res.writeHead(200, {

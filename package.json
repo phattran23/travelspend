@@ -1,9 +1,15 @@
 {
   "name": "travelspend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Travel budget & expense tracker in VND",
   "private": true,
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "cf:dev": "wrangler dev",
+    "cf:db": "wrangler d1 execute travelspend --remote --file=worker/schema.sql",
+    "cf:deploy": "wrangler deploy"
+  },
+  "devDependencies": { "wrangler": "^4" },
   "engines": { "node": ">=22.5" }
 }

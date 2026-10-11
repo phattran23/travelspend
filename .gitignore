@@ -1,2 +1,5 @@
 data/
 node_modules/
+.wrangler/
+.dev.vars
+travelspend/
