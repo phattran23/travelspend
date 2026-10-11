@@ -207,7 +207,7 @@ function renderAuth(app) {
   app.innerHTML = `<div class="auth">
     <section class="auth-hero">
       <span class="brand" style="color:#fff"><span class="logo" style="background:rgba(255,255,255,.18);box-shadow:none">₫</span>TravelSpend</span>
-      <div><h1>Know where every đồng goes.</h1>
+      <div><h1>Tracking your travel expenses</h1>
         <p>Plan trip budgets in VND, log who paid for what, split costs fairly and see the full picture at a glance.</p>
         <ul><li>Budgets and expenses in ₫</li><li>Group splitting &amp; who-owes-whom</li><li>Receipts, charts, PDF &amp; Excel reports</li></ul></div>
       <div class="mock" aria-hidden="true">
