@@ -1,261 +1,146 @@
-# TravelSpend — Hướng dẫn sử dụng & bảo trì
+# Travel Wallet — Hướng dẫn sử dụng & bảo trì
 
-Website: **https://travelspend.trantienphat-ftu2.workers.dev**
-Mã nguồn: https://github.com/phattran23/travelspend
+Travel Wallet giúp nhóm đi chơi quản lý **quỹ chung**, **chi tiêu chung** và **khoản tự trả cá nhân** ở một nơi. Cuối chuyến đi, web tính ra số dư quỹ còn lại và **kế hoạch thanh toán đơn giản nhất**.
 
 ---
 
-# PHẦN A — HƯỚNG DẪN SỬ DỤNG
+# PHẦN A — SỬ DỤNG
 
-## 1. Bắt đầu
+## 1. Khái niệm chính
 
-1. Mở website, bấm **Create an account** (Tạo tài khoản).
-2. Nhập **họ tên**, **email**, **mật khẩu** (tối thiểu 8 ký tự) → **Create account**.
-3. Lần sau chọn **Sign in** để đăng nhập. Phiên đăng nhập được giữ 30 ngày.
-4. Bấm **Sign out** (góc trên bên phải) để đăng xuất.
-
-> Dữ liệu của mỗi tài khoản là riêng tư — người khác không xem được chuyến đi của bạn.
-
-**Muốn xem thử ngay?** Ở màn hình trống, bấm **Load sample trip** để tạo chuyến đi mẫu "Đà Nẵng & Hội An" với đầy đủ chi tiêu và biểu đồ.
-
-## 2. Tạo chuyến đi
-
-Bấm **＋ New trip** và điền:
-
-| Ô | Ý nghĩa |
+| Khái niệm | Ý nghĩa |
 |---|---|
-| Trip name | Tên chuyến đi (bắt buộc) |
-| Destination | Điểm đến — web tự chọn emoji phù hợp (🏖️ Đà Nẵng, ⛰️ Đà Lạt, 🏝️ Phú Quốc…) |
-| Budget | Ngân sách tổng, đơn vị **₫ (VND)**, tự thêm dấu phẩy: `15,000,000` |
-| Start / End date | Ngày đi / về — dùng để dự báo và tính "chi tiêu an toàn mỗi ngày" |
-| Category budgets | (Tuỳ chọn) Hạn mức riêng cho từng danh mục: Lodging, Food, Flights… |
-| Travelers | Tên những người đi, cách nhau bằng dấu phẩy (đã gồm bạn). Có thể thêm sau |
+| **Wallet (quỹ chung)** | Tiền cả nhóm góp vào, dùng để trả chi phí chung |
+| **Add money** | Một người nộp tiền vào quỹ (đóng góp) |
+| **Expense** | Một khoản chi. Có thể **trả từ quỹ** hoặc **một người tự trả (tiền túi)** |
+| **Shared** | Khoản chi chia đều cho nhiều người được chọn |
+| **Personal** | Khoản chi chỉ của một người (VD: mua quà riêng) |
+| **Receives / Owes** | Cuối chuyến: ai được nhận lại tiền, ai còn nợ nhóm |
 
-Sửa hoặc xoá chuyến đi: vào chuyến đi → nút ✏️ / 🗑️ trên banner. **Xoá chuyến đi sẽ xoá toàn bộ chi tiêu và hoá đơn — không khôi phục được.**
+**Cách tính cho mỗi người**
 
-## 3. Thêm chi tiêu
+> Kết quả = *Đã góp quỹ* + *Đã tự trả bằng tiền túi* − *Phần chi tiêu của mình*
 
-Trong chuyến đi, bấm **＋ Add expense** (hoặc nhấn phím **N**, hoặc nút ＋ giữa thanh dưới trên điện thoại).
+- Kết quả **dương** → được nhận lại (**Receives**).
+- Kết quả **âm** → còn nợ nhóm (**Owes**).
+- Tiền còn trong quỹ được hoàn lại cho những người được nhận; web tự tạo **ít giao dịch nhất**.
 
-1. **Amount** — số tiền (₫). Dùng các nút nhanh `+50k`, `+100k`, `+500k`, `+1M`; **Clear** để xoá.
-2. **Category** — chọn danh mục (Lodging, Food, Transport, Flights, Activities, Shopping, Health, Other).
-3. **What was it for?** — mô tả ngắn (VD: "Bún chả Hương Liên").
-4. **Date** — ngày chi; có nút nhanh **Today** / **Yesterday**.
-5. **Paid by** — ai đã trả tiền.
-6. **Split between** — những ai cùng chia khoản này (bấm tên để bật/tắt, **Everyone** = tất cả). Web hiển thị "≈ ₫X mỗi người".
-7. **Notes** — ghi chú (tuỳ chọn).
-8. **Receipt** — đính kèm hoá đơn: ảnh JPG/PNG/WebP/GIF hoặc PDF, tối đa 5 MB.
+## 2. Bắt đầu
 
-Bấm **Add expense** → có hiệu ứng pháo hoa 🎉 khi lưu thành công.
+1. Mở web → **Create an account** → nhập tên, email, mật khẩu (≥ 8 ký tự).
+2. Lần sau chọn **Sign in**. Phiên đăng nhập giữ 30 ngày.
+3. Muốn xem thử: ở màn hình trống bấm **Try a sample trip**.
 
-> Chia tiền luôn **chia đều** giữa những người được chọn; phần lẻ đồng được cộng cho người đầu danh sách.
+## 3. Quy trình một chuyến đi
 
-## 4. Dashboard (tổng quan)
+1. **＋ New trip** → nhập tên, điểm đến, ngày đi/về, ngân sách dự kiến (tuỳ chọn), danh sách người đi (cách nhau dấu phẩy).
+2. **＋ Add money** → mỗi người nộp tiền vào quỹ (chọn người, số tiền, ngày, ghi chú).
+3. Trong chuyến đi, mỗi khoản chi bấm **＋ Expense** (hoặc phím **N**):
+   - **Amount**: số tiền (có nút nhanh +100k, +500k, +1M, +5M).
+   - **Paid from**: *Group wallet* hoặc tên một người (tiền túi).
+   - **Shared** → chọn những ai cùng chia; **Personal** → chọn người được hưởng.
+   - Tuỳ chọn: danh mục, ngày, ghi chú, đính kèm hoá đơn (ảnh/PDF ≤ 5 MB).
+4. Theo dõi ở 3 tab:
+   - **Overview**: số dư từng người + biểu đồ theo danh mục và theo ngày.
+   - **Activity**: dòng thời gian tiền vào/ra; lọc *All / Money in / Shared / Personal*, tìm kiếm; bấm một dòng để sửa hoặc xoá.
+   - **Settle up**: số dư quỹ còn lại, **kế hoạch thanh toán**, bảng kết quả từng người.
+5. Cuối chuyến: vào **Settle up** → **Copy plan** (dán vào nhóm chat) hoặc xuất **PDF / Excel**.
 
-**Banner đầu trang**
-- **Total budget / Total spent / Remaining** và **vòng tròn % ngân sách đã dùng** (xanh → vàng ≥ 85% → đỏ khi vượt).
-- Dòng trạng thái: "On track", "Spending faster than your plan", "Almost at your limit", "Over budget…".
-- Huy hiệu trạng thái chuyến đi: *Planning / In N days / Happening now / Completed*.
+## 4. Quản lý
 
-**Thẻ thông tin nhanh**: chi tiêu trung bình/ngày, bình quân đầu người, danh mục chi nhiều nhất, **Safe daily spend** (còn được tiêu bao nhiêu mỗi ngày), **Projected total** (dự báo tổng chi), ngày chi nhiều nhất, số hoá đơn đã có.
+- **Sửa / xoá chuyến đi, xuất báo cáo**: nút **⋯** góc phải tiêu đề chuyến đi.
+- **Thêm / đổi tên / xoá người đi**: tab Overview (bấm tên một người).
+  - Không xoá được người đã góp quỹ, đã trả tiền, hoặc là người duy nhất của một khoản chi — hãy sửa các khoản đó trước.
+- **Giao diện sáng/tối**: nút 🌙/☀️ trên thanh trên. **Esc** đóng cửa sổ.
 
-**Biểu đồ**
-- *Spending by category* — tròn theo danh mục.
-- *Spending trend & forecast* — cột theo ngày + đường luỹ kế + đường ngân sách + đường dự báo (nét đứt).
-- *Category budgets* — thanh tiến độ từng danh mục so với hạn mức.
-- *Daily spend by category* — cột chồng theo ngày.
-- *Spending calendar* — lịch nhiệt: ngày càng đậm = chi càng nhiều (rê chuột để xem số tiền).
-- *Spending by traveler* — mỗi người đã trả bao nhiêu so với phần phải chịu.
-- *Biggest expenses* — top 5 khoản lớn nhất.
-
-## 5. Tab "Expenses" (danh sách chi tiêu)
-
-- **Tìm kiếm** theo tên/ghi chú; **lọc** theo danh mục, theo người trả.
-- **Sort**: mới nhất / cũ nhất / số tiền cao nhất / thấp nhất.
-- **Group**: theo ngày, theo danh mục, hoặc không nhóm. Phía trên có tổng số khoản và tổng tiền đang hiển thị.
-- Mỗi dòng có: 📎 xem hoá đơn · ⧉ **nhân bản** (tạo khoản mới từ khoản cũ) · ✏️ sửa · 🗑️ xoá.
-
-## 6. Tab "Travelers & splits" (người đi & chia tiền)
-
-- Mỗi người hiển thị **Paid** (đã trả), **Fair share** (phần phải chịu) và số dư: *Gets back* (được nhận lại) / *Owes* (còn nợ).
-- **Settle up**: danh sách "A trả B số tiền X" với **số lần chuyển khoản ít nhất**.
-- **＋ Add traveler**: thêm người; ✏️ đổi tên; ✕ xoá.
-  - Không xoá được người đã trả tiền cho khoản nào đó, hoặc người là người duy nhất chia một khoản — hãy sửa/xoá khoản đó trước.
-
-## 7. Xuất báo cáo
-
-Bấm **⬇ Export** (trên điện thoại: nút Export ở thanh dưới):
-- **PDF report** — báo cáo A4: tổng quan, theo danh mục, theo người đi, thanh toán bù trừ, toàn bộ chi tiêu.
-- **Excel workbook** — 5 sheet: Summary, Expenses, By category (kèm ngân sách), By traveler, Settlement.
-
-## 8. Giao diện
-
-- Nút 🌙 / ☀️ trên thanh trên: chuyển **chế độ sáng / tối** (nhớ lựa chọn của bạn).
-- Giao diện tự co giãn cho máy tính, máy tính bảng, điện thoại.
-- Phím tắt: **N** = thêm chi tiêu, **Esc** = đóng cửa sổ.
-
-## 9. Hỏi đáp nhanh
+## 5. Hỏi đáp
 
 | Câu hỏi | Trả lời |
 |---|---|
-| Quên mật khẩu? | Hiện **chưa có** chức năng đặt lại mật khẩu — xem mục B.9 để bổ sung; tạm thời chủ site có thể xoá tài khoản trong DB để đăng ký lại. |
-| Báo "Receipt uploads are not enabled"? | Bộ nhớ hoá đơn (R2) chưa bật — xem B.7. Vẫn lưu chi tiêu bình thường không cần hoá đơn. |
-| Có chia không đều được không? | Chưa — hiện chỉ chia đều. |
-| Số tiền có lẻ/thập phân? | Chỉ nhận số nguyên VND. |
-| Dữ liệu trên máy (chạy local) và trên web có chung không? | **Không**, hai cơ sở dữ liệu tách biệt. |
+| Quỹ bị âm (Overdrawn)? | Quỹ đã chi nhiều hơn số tiền thu. Hãy **Add money** hoặc ghi lại ai thực sự đã trả. Kế hoạch thanh toán sẽ có dòng "… pays Wallet" để bù. |
+| Chia không đều? | Chưa hỗ trợ — chỉ chia đều giữa những người được chọn. Có thể tách thành nhiều khoản. |
+| Quên mật khẩu? | Chưa có chức năng đặt lại mật khẩu. |
+| Báo "Receipt uploads are not enabled"? | Chưa bật R2 trên Cloudflare — xem B.6. Vẫn lưu khoản chi bình thường. |
+| Dữ liệu trên máy và trên web? | Hai cơ sở dữ liệu tách biệt. |
 
 ---
 
 # PHẦN B — CẬP NHẬT & BẢO TRÌ
 
-## B.1. Cấu trúc dự án
+## B.1. Cấu trúc
 
 ```
-TravelSpend/
-├─ public/                 ← Giao diện (chạy trên trình duyệt)
-│  ├─ index.html           ← Khung trang
-│  ├─ app.js               ← Toàn bộ logic giao diện, biểu đồ, xuất file
-│  ├─ styles.css           ← Giao diện, dark mode, responsive
-│  ├─ theme.js             ← Áp dụng sáng/tối trước khi vẽ trang
-│  ├─ _headers             ← Header bảo mật khi chạy trên Cloudflare
-│  └─ vendor/              ← Chart.js, SheetJS, jsPDF, html2canvas (đã đóng gói sẵn)
-├─ worker/
-│  ├─ index.js             ← API chạy trên Cloudflare (Workers + D1 + R2)
-│  └─ schema.sql           ← Cấu trúc bảng dữ liệu
-├─ server.js               ← Bản Node.js để chạy trên máy (cùng API với worker/)
-├─ wrangler.jsonc          ← Cấu hình Cloudflare
-├─ scripts/cf-setup.mjs    ← Script cài đặt Cloudflare một lệnh
-└─ docs/HUONG_DAN.md       ← File này
+worker/index.js     ← TOÀN BỘ API (chạy trên Cloudflare và cả khi chạy local)
+worker/schema.sql   ← cấu trúc cơ sở dữ liệu
+server.js           ← bộ chạy local (SQLite + file) dùng đúng worker/index.js
+public/app.js       ← toàn bộ giao diện & logic tính toán
+public/styles.css   ← giao diện (biến màu ở đầu file)
+public/index.html   ← khung trang
+scripts/cf-setup.mjs, wrangler.jsonc ← cấu hình Cloudflare
 ```
 
-> ⚠️ **Quy tắc vàng:** API tồn tại ở **hai nơi** — `server.js` (chạy local) và `worker/index.js` (chạy trên Cloudflare). Khi sửa API hoặc luật kiểm tra dữ liệu, **sửa cả hai file** để hai môi trường luôn giống nhau. Phần giao diện (`public/`) dùng chung.
+> Chỉ có **một** nơi chứa API là `worker/index.js` — sửa một lần, cả local lẫn Cloudflare cùng cập nhật.
 
-## B.2. Quy trình cập nhật chuẩn
+## B.2. Quy trình cập nhật
 
 ```bash
-# 1. Sửa code (trong public/, worker/index.js, server.js …)
-
-# 2. Chạy thử trên máy
-node server.js                       # http://localhost:3000   (bản Node)
-#   hoặc thử đúng như Cloudflare:
-npx wrangler d1 execute travelspend --local --file=worker/schema.sql
-npm run cf:dev                       # http://localhost:8787
-
-# 3. Lưu vào Git & đẩy lên GitHub
-git add -A
-git commit -m "Mô tả thay đổi"
-git push
-
-# 4. Đưa lên website thật
-npm run cf:deploy
+node server.js              # chạy thử: http://localhost:3000
+git add -A && git commit -m "Mô tả thay đổi" && git push
+npm run cf:deploy           # đưa lên web
 ```
+Sau đó nhấn **Ctrl+F5** để tải bản mới.
 
-Sau khi deploy, nhấn **Ctrl+F5** trên trình duyệt để tải lại bản mới (tránh cache cũ).
+**Lần đầu nâng cấp lên Travel Wallet** (DB cũ cần thêm bảng/cột mới): chạy `npm run cf:setup` một lần.
 
-## B.3. Công thức thêm / sửa tính năng thường gặp
+## B.3. Sửa nội dung ở đâu
 
-### Thêm một danh mục chi tiêu mới (ví dụ "Quà tặng")
-1. `public/app.js` → object `CATS`: thêm `gifts: { label: 'Gifts', icon: '🎁', color: '#f97316' }`.
-2. `server.js` → mảng `CATEGORIES`: thêm `'gifts'`.
-3. `worker/index.js` → mảng `CATEGORIES`: thêm `'gifts'`.
-4. Commit → `npm run cf:deploy`. (Không cần đổi cơ sở dữ liệu.)
-
-### Thêm một cột dữ liệu mới (ví dụ `currency` cho chuyến đi)
-1. `worker/schema.sql`: thêm cột vào `CREATE TABLE` (cho cài mới).
-2. Chạy lệnh migration trên DB đang chạy:
-   ```bash
-   npx wrangler d1 execute travelspend --remote --command "ALTER TABLE trips ADD COLUMN currency TEXT"
-   ```
-3. `server.js`: thêm một dòng `try { db.exec('ALTER TABLE trips ADD COLUMN currency TEXT'); } catch {}` cạnh dòng tương tự đã có (cho bản local).
-4. Sửa `tripFields()` và các câu `INSERT/UPDATE` trong **cả** `server.js` và `worker/index.js`.
-5. Sửa form + hiển thị trong `public/app.js`.
-6. Deploy.
-
-> Luôn **thêm cột** (ALTER TABLE ADD COLUMN) thay vì xoá/đổi tên cột để không mất dữ liệu cũ.
-
-### Thêm một API mới
-Trong `worker/index.js` và `server.js`, thêm một dòng `route('GET', '/api/ten-api', handler)` — luôn gọi `requireUser` và kiểm tra quyền sở hữu (`getTrip`/`getExpense`) trước khi trả dữ liệu.
-
-### Đổi giao diện, màu sắc, font
-- Màu: biến `--accent`, `--accent-2`, … ở đầu `public/styles.css` (có khối riêng cho `[data-theme="dark"]`).
-- Font: biến `--font` trong `styles.css` và hằng `FONT` ở đầu `app.js` (dùng cho biểu đồ).
-- Văn bản giao diện: chuỗi tiếng Anh nằm trực tiếp trong `app.js` — tìm và sửa (hoặc dịch sang tiếng Việt).
-
-### Đổi nội dung báo cáo PDF / Excel
-Hàm `exportPdf()` và `exportExcel()` trong `public/app.js`.
-
-## B.4. Cơ sở dữ liệu — xem, sao lưu, khôi phục
-
-```bash
-# Sao lưu toàn bộ DB trên Cloudflare ra file (nên làm định kỳ, và trước khi migration)
-npx wrangler d1 export travelspend --remote --output=backup-2026-10-11.sql
-
-# Khôi phục / nạp lại từ file sao lưu (cẩn thận: ghi vào DB thật)
-npx wrangler d1 execute travelspend --remote --file=backup-2026-10-11.sql
-
-# Xem nhanh dữ liệu
-npx wrangler d1 execute travelspend --remote --command "SELECT COUNT(*) AS users FROM users"
-npx wrangler d1 execute travelspend --remote --command "SELECT id,name,email,created_at FROM users"
-
-# Xoá một tài khoản (kèm toàn bộ chuyến đi, chi tiêu của tài khoản đó)
-npx wrangler d1 execute travelspend --remote --command "DELETE FROM users WHERE email='a@b.com'"
-```
-
-Bản chạy trên máy: toàn bộ dữ liệu nằm trong thư mục **`data/`** (`travelspend.db` + `receipts/`) — chỉ cần sao chép thư mục này để sao lưu.
-
-## B.5. Theo dõi lỗi & quay lui bản cũ
-
-```bash
-npx wrangler tail                    # xem log trực tiếp của website đang chạy
-npx wrangler deployments list        # danh sách các lần deploy
-npx wrangler rollback                # quay về phiên bản deploy trước đó
-```
-
-Cũng có thể xem ở Cloudflare Dashboard → **Workers & Pages → travelspend → Logs / Metrics / Deployments**.
-
-## B.6. Tên miền riêng
-
-Cloudflare Dashboard → **Workers & Pages → travelspend → Settings → Domains & Routes → Add → Custom domain**. Tên miền cần nằm trong tài khoản Cloudflare của bạn. HTTPS được bật tự động.
-
-## B.7. Bật tải hoá đơn (R2)
-
-1. Cloudflare Dashboard → **R2 Object Storage** → bật/đăng ký gói R2 (có hạn mức miễn phí, yêu cầu thêm phương thức thanh toán).
-2. Chạy lại: `npm run cf:setup` — script tạo bucket `travelspend-receipts`, gắn vào Worker và deploy.
-3. Thử đính kèm hoá đơn vào một chi tiêu.
-
-## B.8. Chi phí & giới hạn
-
-Gói miễn phí của Workers/D1/R2 đủ cho nhóm nhỏ, dùng cá nhân. Hạn mức có thể thay đổi — kiểm tra trang giá của Cloudflare và mục **Usage** trong Dashboard. Nếu vượt hạn mức, nâng lên gói Workers Paid.
-
-## B.9. Bảo mật & vấn đề cần lưu ý
-
-- Mật khẩu được băm (PBKDF2 trên Cloudflare / scrypt trên Node); phiên đăng nhập dùng cookie HttpOnly + SameSite=Strict; đăng nhập sai nhiều lần bị tạm khoá 15 phút.
-- Cloudflare **không** lưu mật khẩu dạng chữ thường — nhưng chủ site vẫn là người có thể truy cập DB: hãy bảo vệ tài khoản Cloudflare bằng xác thực 2 bước.
-- `database_id` trong `wrangler.jsonc` không phải bí mật. **Không bao giờ** commit API token Cloudflare.
-- Thư viện trong `public/vendor/` là bản cố định; định kỳ kiểm tra bản vá bảo mật của Chart.js, SheetJS, jsPDF, html2canvas và thay file.
-- Chưa có: quên/đổi mật khẩu, xác minh email, chia tiền không đều, nhiều loại tiền tệ — có thể bổ sung theo công thức ở B.3.
-
-## B.10. Xử lý sự cố
-
-| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+| Muốn sửa | File | Tìm |
 |---|---|---|
-| Web hiện giao diện cũ sau khi deploy | Cache trình duyệt | Ctrl+F5 |
-| `npm run cf:deploy` báo lỗi D1 `database_id` | Chưa chạy setup / sai ID | `npm run cf:setup` |
-| `Please enable R2 … code 10042` | Tài khoản chưa bật R2 | Xem B.7 (app vẫn chạy, chỉ thiếu hoá đơn) |
-| `Not logged in` / lỗi xác thực khi deploy | Hết phiên wrangler | `npx wrangler login` |
-| Đăng nhập báo "Too many attempts" | Sai mật khẩu quá 10 lần | Đợi 15 phút |
-| API trả 500 | Lỗi code/migration chưa chạy | `npx wrangler tail` để xem chi tiết; chạy migration còn thiếu |
-| Chạy local báo thiếu `node:sqlite` | Node quá cũ | Cài Node.js ≥ 22.5 |
-| Biểu đồ/xuất file không hoạt động | Thiếu file trong `public/vendor/` | Khôi phục các file vendor từ Git |
+| Tên app, slogan đăng nhập | `public/app.js` | `Group trip money, simply settled` |
+| Tiêu đề tab trình duyệt | `public/index.html` | `<title>` |
+| Danh mục chi tiêu (tên, icon, màu) | `public/app.js` + `worker/index.js` | `CATS` và `CATEGORIES` |
+| Màu, font, giao diện | `public/styles.css` | `:root`, `[data-theme="dark"]` |
+| Công thức tính / kế hoạch thanh toán | `public/app.js` | `function ledger` |
+| Chuyến đi mẫu | `worker/index.js` | `seedDemo` |
+| Nội dung báo cáo PDF / Excel | `public/app.js` | `exportPdf`, `exportExcel` |
 
-## B.11. Danh sách lệnh hay dùng
+## B.4. Thêm tính năng
 
-| Việc | Lệnh |
+- **Thêm cột dữ liệu**: thêm vào `worker/schema.sql` (cho cài mới) + chạy
+  `npx wrangler d1 execute travelspend --remote --command "ALTER TABLE trips ADD COLUMN ten_cot TEXT"`
+  + thêm một dòng `ALTER` tương tự (bọc try/catch) trong `server.js`; sau đó sửa `worker/index.js` và giao diện.
+- **Thêm API**: thêm `route('GET', '/api/...', handler)` trong `worker/index.js`, luôn gọi `requireUser` và kiểm tra quyền sở hữu (`getTrip` / `getOwned`).
+
+## B.5. Dữ liệu & vận hành
+
+```bash
+npx wrangler d1 export travelspend --remote --output=backup.sql       # sao lưu
+npx wrangler d1 execute travelspend --remote --file=backup.sql        # khôi phục
+npx wrangler d1 execute travelspend --remote --command "SELECT COUNT(*) FROM users"
+npx wrangler tail                                                      # xem log trực tiếp
+npx wrangler rollback                                                  # quay về bản deploy trước
+```
+Chạy local: dữ liệu trong thư mục `data/` (sao chép để sao lưu).
+
+## B.6. Bật tải hoá đơn (R2)
+
+Cloudflare Dashboard → **R2** → bật (có gói miễn phí, cần phương thức thanh toán) → chạy lại `npm run cf:setup`.
+
+## B.7. Tên miền riêng
+
+Dashboard → **Workers & Pages → travelspend → Settings → Domains & Routes → Add → Custom domain**.
+
+## B.8. Xử lý sự cố
+
+| Triệu chứng | Cách xử lý |
 |---|---|
-| Chạy bản Node trên máy | `node server.js` |
-| Chạy thử bản Cloudflare trên máy | `npm run cf:dev` |
-| Cài đặt Cloudflare lần đầu / sửa cấu hình | `npm run cf:setup` |
-| Đưa bản mới lên web | `npm run cf:deploy` |
-| Xem log | `npx wrangler tail` |
-| Sao lưu DB | `npx wrangler d1 export travelspend --remote --output=backup.sql` |
-| Quay lui bản deploy | `npx wrangler rollback` |
+| Web hiện giao diện cũ | Ctrl+F5 |
+| API lỗi 500 sau khi nâng cấp | `npm run cf:setup` (thêm bảng/cột còn thiếu), rồi xem `npx wrangler tail` |
+| Deploy báo lỗi đăng nhập | `npx wrangler login` |
+| "Too many attempts" | Sai mật khẩu > 10 lần — đợi 15 phút |
+| Local báo thiếu `node:sqlite` | Cài Node.js ≥ 22.5 |
+| Tài khoản cũ trên máy không đăng nhập được | Phiên bản mới dùng cách băm mật khẩu khác; xoá thư mục `data/` hoặc đăng ký lại |
+
+## B.9. Bảo mật
+
+Mật khẩu băm PBKDF2; cookie HttpOnly + SameSite=Strict; giới hạn đăng nhập sai; mỗi người chỉ truy cập dữ liệu của mình. Hãy bật xác thực 2 bước cho tài khoản Cloudflare và **không commit** API token.

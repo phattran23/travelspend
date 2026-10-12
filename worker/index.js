@@ -1,5 +1,5 @@
-// TravelSpend — Cloudflare Worker backend (D1 database + R2 receipts + static assets).
-// Same REST API as server.js, so the front end in public/ works unchanged.
+// Travel Wallet API — the single backend for both Cloudflare (D1 + R2) and local Node (see server.js).
+// Bindings: env.DB (D1), env.RECEIPTS (R2, optional), env.ASSETS (static files).
 
 const SESSION_DAYS = 30;
 const MAX_BODY = 8 * 1024 * 1024;
@@ -38,7 +38,7 @@ const isoDate = (v, field, optional = false) => {
   return v;
 };
 
-/* ---------- passwords & sessions ---------- */
+/* ---------- passwords, sessions, rate limit ---------- */
 async function derive(password, salt, iterations) {
   const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256));
@@ -64,11 +64,13 @@ function cookiesOf(req) {
   }
   return out;
 }
+const cookie = (c, value, maxAge) =>
+  `ts_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${c.url.protocol === 'https:' ? '; Secure' : ''}`;
 async function startSession(c, userId) {
   const token = randomHex(32);
   await c.env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?,?,?)')
     .bind(await sha256(token), userId, Date.now() + SESSION_DAYS * 864e5).run();
-  c.cookies.push(`ts_session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
+  c.cookies.push(cookie(c, token, SESSION_DAYS * 86400));
 }
 async function currentUser(c) {
   const token = cookiesOf(c.req).ts_session;
@@ -81,8 +83,6 @@ async function requireUser(c) {
   if (!u) throw new HttpError(401, 'Please sign in');
   return u;
 }
-
-/* rate limiting backed by D1 (isolates don't share memory) */
 async function throttleCheck(env, key, limit) {
   const row = await env.DB.prepare('SELECT count, reset FROM attempts WHERE key = ?').bind(key).first();
   if (row && row.reset > Date.now() && row.count >= limit) throw new HttpError(429, 'Too many attempts. Please try again later.');
@@ -101,27 +101,34 @@ async function getTrip(c, id) {
   if (!t) throw new HttpError(404, 'Trip not found');
   return t;
 }
-async function getExpense(c, id) {
+async function getOwned(c, table, id, label) {
   const u = await requireUser(c);
-  const e = await c.env.DB.prepare(`SELECT e.* FROM expenses e JOIN trips t ON t.id = e.trip_id
-    WHERE e.id = ? AND t.user_id = ?`).bind(Number(id), u.id).first();
-  if (!e) throw new HttpError(404, 'Expense not found');
-  return e;
+  const row = await c.env.DB.prepare(`SELECT x.* FROM ${table} x JOIN trips t ON t.id = x.trip_id WHERE x.id = ? AND t.user_id = ?`)
+    .bind(Number(id), u.id).first();
+  if (!row) throw new HttpError(404, `${label} not found`);
+  return row;
+}
+// every trip owns one hidden "wallet" traveler row; created lazily for trips made before wallets existed
+async function walletId(env, tripId) {
+  const w = await env.DB.prepare('SELECT id FROM travelers WHERE trip_id = ? AND is_wallet = 1').bind(tripId).first();
+  if (w) return w.id;
+  const r = await env.DB.prepare("INSERT INTO travelers (trip_id, name, is_wallet) VALUES (?, 'Group wallet', 1)").bind(tripId).run();
+  return r.meta.last_row_id;
 }
 async function tripDetail(env, trip) {
-  const [tr, sp, ex] = await env.DB.batch([
-    env.DB.prepare('SELECT id, name FROM travelers WHERE trip_id = ? ORDER BY id').bind(trip.id),
-    env.DB.prepare(`SELECT s.expense_id, s.traveler_id FROM expense_splits s JOIN expenses e ON e.id = s.expense_id WHERE e.trip_id = ?`).bind(trip.id),
+  const wid = await walletId(env, trip.id);
+  const [tr, sp, ex, co] = await env.DB.batch([
+    env.DB.prepare('SELECT id, name FROM travelers WHERE trip_id = ? AND is_wallet = 0 ORDER BY id').bind(trip.id),
+    env.DB.prepare('SELECT s.expense_id, s.traveler_id FROM expense_splits s JOIN expenses e ON e.id = s.expense_id WHERE e.trip_id = ?').bind(trip.id),
     env.DB.prepare(`SELECT id, title, amount, category, date, notes, paid_by, receipt_name, receipt_type,
       receipt_file IS NOT NULL AS has_receipt FROM expenses WHERE trip_id = ? ORDER BY date DESC, id DESC`).bind(trip.id),
+    env.DB.prepare('SELECT id, traveler_id, amount, date, note FROM contributions WHERE trip_id = ? ORDER BY date DESC, id DESC').bind(trip.id),
   ]);
   const by = new Map();
   for (const s of sp.results) { if (!by.has(s.expense_id)) by.set(s.expense_id, []); by.get(s.expense_id).push(s.traveler_id); }
-  let cat = {};
-  try { cat = JSON.parse(trip.cat_budgets || '{}'); } catch { /* ignore corrupt value */ }
+  const { user_id, cat_budgets, ...t } = trip; // eslint-disable-line no-unused-vars
   return {
-    trip: { ...trip, user_id: undefined, cat_budgets: cat },
-    travelers: tr.results,
+    trip: t, wallet_id: wid, travelers: tr.results, contributions: co.results,
     expenses: ex.results.map((e) => ({ ...e, has_receipt: !!e.has_receipt, split_among: by.get(e.id) || [] })),
   };
 }
@@ -129,8 +136,8 @@ const detailById = async (c, id) => tripDetail(c.env, await getTrip(c, id));
 
 async function saveReceipt(env, r) {
   if (!r || typeof r !== 'object') throw bad('Invalid receipt');
+  if (!env.RECEIPTS) throw bad('Receipt uploads are not enabled yet (R2 storage is not set up). You can still save without a receipt.');
   const ext = RECEIPT_TYPES[r.type];
-  if (!env.RECEIPTS) throw bad('Receipt uploads are not enabled yet (R2 storage is not set up). You can still save the expense without a receipt.');
   if (!ext) throw bad('Receipt must be an image (JPG, PNG, WebP, GIF) or PDF');
   if (typeof r.data !== 'string' || r.data.length * 0.75 > MAX_RECEIPT) throw bad('Receipt must be smaller than 5 MB');
   let bytes;
@@ -142,13 +149,16 @@ async function saveReceipt(env, r) {
 }
 const removeReceipt = (env, file) => (file && env.RECEIPTS ? env.RECEIPTS.delete(file).catch(() => {}) : undefined);
 
+const people = async (env, tripId) =>
+  new Set((await env.DB.prepare('SELECT id FROM travelers WHERE trip_id = ? AND is_wallet = 0').bind(tripId).all()).results.map((r) => r.id));
+
 async function expenseFields(env, body, tripId) {
-  const { results } = await env.DB.prepare('SELECT id FROM travelers WHERE trip_id = ?').bind(tripId).all();
-  const ids = new Set(results.map((r) => r.id));
-  const paidBy = Number(body.paid_by);
-  if (!ids.has(paidBy)) throw bad('Choose who paid');
+  const ids = await people(env, tripId);
+  const wid = await walletId(env, tripId);
+  const paidBy = body.paid_by === 'wallet' ? wid : Number(body.paid_by);
+  if (paidBy !== wid && !ids.has(paidBy)) throw bad('Choose who paid');
   const split = Array.isArray(body.split_among) ? [...new Set(body.split_among.map(Number))] : [];
-  if (!split.length || !split.every((i) => ids.has(i))) throw bad('Choose who shares this expense');
+  if (!split.length || !split.every((i) => ids.has(i))) throw bad('Choose who this expense is for');
   const category = String(body.category);
   if (!CATEGORIES.includes(category)) throw bad('Invalid category');
   return {
@@ -159,11 +169,6 @@ async function expenseFields(env, body, tripId) {
 const splitStmts = (env, expenseId, split) => split.map((t) =>
   env.DB.prepare('INSERT INTO expense_splits (expense_id, traveler_id) VALUES (?,?)').bind(expenseId, t));
 
-function catBudgets(input) {
-  const out = {};
-  if (input && typeof input === 'object') for (const k of CATEGORIES) if (Number(input[k]) > 0) out[k] = money(input[k], `${k} budget`);
-  return out;
-}
 function tripFields(body) {
   const start = isoDate(body.start_date, 'Start date', true);
   const end = isoDate(body.end_date, 'End date', true);
@@ -171,31 +176,36 @@ function tripFields(body) {
   return {
     name: str(body.name, { min: 1, max: 100, field: 'Trip name' }),
     destination: str(body.destination ?? '', { max: 100, field: 'Destination' }),
-    budget: money(body.budget, 'Budget', { allowZero: true }), start, end, catBudgets: JSON.stringify(catBudgets(body.cat_budgets)),
+    budget: body.budget === '' || body.budget == null ? 0 : money(body.budget, 'Budget', { allowZero: true }), start, end,
   };
 }
 
 async function seedDemo(env, user) {
-  const day = (o) => { const d = new Date(); d.setDate(d.getDate() - 10 + o); return d.toISOString().slice(0, 10); };
-  const cb = JSON.stringify({ flights: 7000000, lodging: 5000000, food: 3500000, activities: 3500000, transport: 1000000, shopping: 1000000 });
-  const t = await env.DB.prepare('INSERT INTO trips (user_id,name,destination,budget,start_date,end_date,cat_budgets) VALUES (?,?,?,?,?,?,?)')
-    .bind(user.id, 'Đà Nẵng & Hội An', 'Đà Nẵng, Việt Nam', 20000000, day(0), day(5), cb).run();
+  const day = (o) => { const d = new Date(); d.setDate(d.getDate() - 7 + o); return d.toISOString().slice(0, 10); };
+  const t = await env.DB.prepare('INSERT INTO trips (user_id,name,destination,budget,start_date,end_date) VALUES (?,?,?,?,?,?)')
+    .bind(user.id, 'Đà Nẵng & Hội An', 'Đà Nẵng, Việt Nam', 20000000, day(0), day(5)).run();
   const tid = t.meta.last_row_id;
-  const names = [user.name.split(' ')[0] || 'Me', 'Linh', 'Minh', 'Hà'];
+  const wid = await walletId(env, tid);
   const ids = [];
-  for (const n of names) ids.push((await env.DB.prepare('INSERT INTO travelers (trip_id,name) VALUES (?,?)').bind(tid, n).run()).meta.last_row_id);
+  for (const n of [user.name.split(' ')[0] || 'Me', 'Linh', 'Minh', 'Hà']) {
+    ids.push((await env.DB.prepare('INSERT INTO travelers (trip_id,name) VALUES (?,?)').bind(tid, n).run()).meta.last_row_id);
+  }
+  const money_in = [[0, 5000000], [1, 5000000], [2, 5000000], [3, 3000000]];
+  await env.DB.batch(money_in.map(([i, a]) => env.DB.prepare('INSERT INTO contributions (trip_id,traveler_id,amount,date,note) VALUES (?,?,?,?,?)')
+    .bind(tid, ids[i], a, day(0), 'Trip fund')));
+  // [title, amount, category, dayOffset, payer (-1 = wallet), people it is for (null = everyone)]
   const rows = [
-    ['Round-trip flights', 6400000, 'flights', 0, 0], ['Beachfront hotel (3 nights)', 4800000, 'lodging', 0, 1],
-    ['Airport taxi', 350000, 'transport', 0, 2], ['Mì Quảng lunch', 280000, 'food', 1, 3],
-    ['Seafood dinner at Mỹ Khê', 1250000, 'food', 1, 1], ['Bà Nà Hills tickets', 3000000, 'activities', 2, 2],
-    ['Hội An lantern boat', 400000, 'activities', 3, 3], ['Lanterns & souvenirs', 920000, 'shopping', 3, 0],
-    ['Grab rides', 480000, 'transport', 4, 1], ['Cà phê muối & bánh mì', 190000, 'food', 4, 2],
-    ['Pharmacy', 150000, 'health', 4, 3], ['Farewell dinner', 1450000, 'food', 5, 0],
+    ['Round-trip flights', 6400000, 'flights', 0, -1, null], ['Beachfront hotel (3 nights)', 4800000, 'lodging', 0, -1, null],
+    ['Airport taxi', 350000, 'transport', 0, 2, null], ['Mì Quảng lunch', 280000, 'food', 1, 3, null],
+    ['Seafood dinner at Mỹ Khê', 1250000, 'food', 1, -1, null], ['Bà Nà Hills tickets', 3000000, 'activities', 2, -1, null],
+    ['Hội An lantern boat', 400000, 'activities', 3, 3, null], ['Souvenirs for family', 920000, 'shopping', 3, 0, [0]],
+    ['Grab rides', 480000, 'transport', 4, 1, null], ['Pharmacy', 150000, 'health', 4, -1, [3]],
+    ['Massage', 600000, 'other', 4, 2, [2]], ['Farewell dinner', 1450000, 'food', 5, -1, null],
   ];
-  for (const [title, amount, category, off, payer] of rows) {
+  for (const [title, amount, category, off, payer, forWho] of rows) {
     const e = await env.DB.prepare('INSERT INTO expenses (trip_id,title,amount,category,date,paid_by) VALUES (?,?,?,?,?,?)')
-      .bind(tid, title, amount, category, day(off), ids[payer]).run();
-    await env.DB.batch(splitStmts(env, e.meta.last_row_id, ids));
+      .bind(tid, title, amount, category, day(off), payer < 0 ? wid : ids[payer]).run();
+    await env.DB.batch(splitStmts(env, e.meta.last_row_id, forWho ? forWho.map((i) => ids[i]) : ids));
   }
   return tid;
 }
@@ -205,8 +215,7 @@ const routes = [];
 const route = (method, pattern, handler) => routes.push({ method, re: new RegExp(`^${pattern}$`), handler });
 
 route('POST', '/api/auth/register', async (c) => {
-  const ip = c.req.headers.get('cf-connecting-ip') || 'x';
-  const key = `reg:${ip}`;
+  const key = `reg:${c.req.headers.get('cf-connecting-ip') || 'x'}`;
   await throttleCheck(c.env, key, 10);
   const name = str(c.body.name, { min: 1, max: 80, field: 'Name' });
   const email = str(c.body.email, { min: 3, max: 254, field: 'Email' }).toLowerCase();
@@ -237,7 +246,7 @@ route('POST', '/api/auth/login', async (c) => {
 route('POST', '/api/auth/logout', async (c) => {
   const token = cookiesOf(c.req).ts_session;
   if (token) await c.env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(await sha256(token)).run();
-  c.cookies.push('ts_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+  c.cookies.push(cookie(c, '', 0));
   return { ok: true };
 });
 route('GET', '/api/auth/me', async (c) => ({ user: await currentUser(c) }));
@@ -245,9 +254,10 @@ route('GET', '/api/auth/me', async (c) => ({ user: await currentUser(c) }));
 route('GET', '/api/trips', async (c) => {
   const u = await requireUser(c);
   const { results } = await c.env.DB.prepare(`SELECT t.id, t.name, t.destination, t.budget, t.start_date, t.end_date,
+      (SELECT COUNT(*) FROM travelers WHERE trip_id = t.id AND is_wallet = 0) AS traveler_count,
+      COALESCE((SELECT SUM(amount) FROM contributions WHERE trip_id = t.id), 0) AS collected,
       COALESCE((SELECT SUM(amount) FROM expenses WHERE trip_id = t.id), 0) AS spent,
-      (SELECT COUNT(*) FROM expenses WHERE trip_id = t.id) AS expense_count,
-      (SELECT COUNT(*) FROM travelers WHERE trip_id = t.id) AS traveler_count
+      COALESCE((SELECT SUM(e.amount) FROM expenses e JOIN travelers w ON w.id = e.paid_by AND w.is_wallet = 1 WHERE e.trip_id = t.id), 0) AS from_wallet
     FROM trips t WHERE t.user_id = ? ORDER BY COALESCE(t.start_date, t.created_at) DESC, t.id DESC`).bind(u.id).all();
   return { trips: results };
 });
@@ -257,22 +267,19 @@ route('POST', '/api/trips', async (c) => {
   const names = (Array.isArray(c.body.travelers) ? c.body.travelers : []).map((n) => str(String(n), { min: 1, max: 60, field: 'Traveler name' }));
   if (names.length > 30) throw bad('Up to 30 travelers per trip');
   if (!names.length) names.push(u.name);
-  const r = await c.env.DB.prepare('INSERT INTO trips (user_id,name,destination,budget,start_date,end_date,cat_budgets) VALUES (?,?,?,?,?,?,?)')
-    .bind(u.id, f.name, f.destination, f.budget, f.start, f.end, f.catBudgets).run();
+  const r = await c.env.DB.prepare('INSERT INTO trips (user_id,name,destination,budget,start_date,end_date) VALUES (?,?,?,?,?,?)')
+    .bind(u.id, f.name, f.destination, f.budget, f.start, f.end).run();
   const tid = r.meta.last_row_id;
   await c.env.DB.batch(names.map((n) => c.env.DB.prepare('INSERT INTO travelers (trip_id,name) VALUES (?,?)').bind(tid, n)));
   return detailById(c, tid);
 });
-route('POST', '/api/demo', async (c) => {
-  const u = await requireUser(c);
-  return detailById(c, await seedDemo(c.env, u));
-});
+route('POST', '/api/demo', async (c) => detailById(c, await seedDemo(c.env, await requireUser(c))));
 route('GET', '/api/trips/(\\d+)', (c) => detailById(c, c.params[0]));
 route('PUT', '/api/trips/(\\d+)', async (c) => {
   const t = await getTrip(c, c.params[0]);
   const f = tripFields(c.body);
-  await c.env.DB.prepare('UPDATE trips SET name=?, destination=?, budget=?, start_date=?, end_date=?, cat_budgets=? WHERE id=?')
-    .bind(f.name, f.destination, f.budget, f.start, f.end, f.catBudgets, t.id).run();
+  await c.env.DB.prepare('UPDATE trips SET name=?, destination=?, budget=?, start_date=?, end_date=? WHERE id=?')
+    .bind(f.name, f.destination, f.budget, f.start, f.end, t.id).run();
   return detailById(c, t.id);
 });
 route('DELETE', '/api/trips/(\\d+)', async (c) => {
@@ -281,6 +288,7 @@ route('DELETE', '/api/trips/(\\d+)', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM expense_splits WHERE expense_id IN (SELECT id FROM expenses WHERE trip_id = ?)').bind(t.id),
     c.env.DB.prepare('DELETE FROM expenses WHERE trip_id = ?').bind(t.id),
+    c.env.DB.prepare('DELETE FROM contributions WHERE trip_id = ?').bind(t.id),
     c.env.DB.prepare('DELETE FROM travelers WHERE trip_id = ?').bind(t.id),
     c.env.DB.prepare('DELETE FROM trips WHERE id = ?').bind(t.id),
   ]);
@@ -291,29 +299,29 @@ route('DELETE', '/api/trips/(\\d+)', async (c) => {
 route('POST', '/api/trips/(\\d+)/travelers', async (c) => {
   const t = await getTrip(c, c.params[0]);
   const name = str(c.body.name, { min: 1, max: 60, field: 'Name' });
-  const n = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM travelers WHERE trip_id = ?').bind(t.id).first();
-  if (n.n >= 30) throw bad('Up to 30 travelers per trip');
+  if ((await people(c.env, t.id)).size >= 30) throw bad('Up to 30 travelers per trip');
   const r = await c.env.DB.prepare('INSERT INTO travelers (trip_id,name) VALUES (?,?)').bind(t.id, name).run();
   return { traveler: { id: r.meta.last_row_id, name } };
 });
 route('PUT', '/api/trips/(\\d+)/travelers/(\\d+)', async (c) => {
   const t = await getTrip(c, c.params[0]);
   const name = str(c.body.name, { min: 1, max: 60, field: 'Name' });
-  const r = await c.env.DB.prepare('UPDATE travelers SET name = ? WHERE id = ? AND trip_id = ?').bind(name, Number(c.params[1]), t.id).run();
+  const r = await c.env.DB.prepare('UPDATE travelers SET name = ? WHERE id = ? AND trip_id = ? AND is_wallet = 0').bind(name, Number(c.params[1]), t.id).run();
   if (!r.meta.changes) throw new HttpError(404, 'Traveler not found');
   return { ok: true };
 });
 route('DELETE', '/api/trips/(\\d+)/travelers/(\\d+)', async (c) => {
   const t = await getTrip(c, c.params[0]);
   const tid = Number(c.params[1]);
-  const n = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM travelers WHERE trip_id = ?').bind(t.id).first();
-  if (n.n <= 1) throw bad('A trip needs at least one traveler');
-  if (await c.env.DB.prepare('SELECT 1 AS x FROM expenses WHERE trip_id = ? AND paid_by = ?').bind(t.id, tid).first()) {
-    throw new HttpError(409, 'This traveler paid for expenses. Reassign or delete those expenses first.');
-  }
+  const ids = await people(c.env, t.id);
+  if (!ids.has(tid)) throw new HttpError(404, 'Traveler not found');
+  if (ids.size <= 1) throw bad('A trip needs at least one traveler');
+  const q = (sql, ...a) => c.env.DB.prepare(sql).bind(...a).first();
+  if (await q('SELECT 1 AS x FROM expenses WHERE trip_id = ? AND paid_by = ?', t.id, tid)) throw new HttpError(409, 'This traveler paid for expenses. Reassign or delete those first.');
+  if (await q('SELECT 1 AS x FROM contributions WHERE trip_id = ? AND traveler_id = ?', t.id, tid)) throw new HttpError(409, 'This traveler has contributions. Delete those first.');
   const orphans = await c.env.DB.prepare(`SELECT s.expense_id FROM expense_splits s JOIN expenses e ON e.id = s.expense_id
     WHERE e.trip_id = ? GROUP BY s.expense_id HAVING COUNT(*) = 1 AND MAX(s.traveler_id = ?) = 1`).bind(t.id, tid).all();
-  if (orphans.results.length) throw new HttpError(409, 'Some expenses are shared only by this traveler. Edit those expenses first.');
+  if (orphans.results.length) throw new HttpError(409, 'Some expenses are only for this traveler. Edit or delete those first.');
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM expense_splits WHERE traveler_id = ?').bind(tid),
     c.env.DB.prepare('DELETE FROM travelers WHERE id = ? AND trip_id = ?').bind(tid, t.id),
@@ -321,11 +329,33 @@ route('DELETE', '/api/trips/(\\d+)/travelers/(\\d+)', async (c) => {
   return { ok: true };
 });
 
-async function expenseOut(c, id) {
-  const e = await c.env.DB.prepare('SELECT trip_id FROM expenses WHERE id = ?').bind(id).first();
-  const trip = await c.env.DB.prepare('SELECT * FROM trips WHERE id = ?').bind(e.trip_id).first();
-  return (await tripDetail(c.env, trip)).expenses.find((x) => x.id === id);
+/* contributions (money into the wallet) */
+async function contributionFields(c, tripId) {
+  const ids = await people(c.env, tripId);
+  const traveler = Number(c.body.traveler_id);
+  if (!ids.has(traveler)) throw bad('Choose who contributed');
+  return { traveler, amount: money(c.body.amount, 'Amount'), date: isoDate(c.body.date, 'Date'), note: str(c.body.note ?? '', { max: 200, field: 'note' }) };
 }
+route('POST', '/api/trips/(\\d+)/contributions', async (c) => {
+  const t = await getTrip(c, c.params[0]);
+  const f = await contributionFields(c, t.id);
+  const r = await c.env.DB.prepare('INSERT INTO contributions (trip_id,traveler_id,amount,date,note) VALUES (?,?,?,?,?)')
+    .bind(t.id, f.traveler, f.amount, f.date, f.note).run();
+  return { id: r.meta.last_row_id };
+});
+route('PUT', '/api/contributions/(\\d+)', async (c) => {
+  const old = await getOwned(c, 'contributions', c.params[0], 'Contribution');
+  const f = await contributionFields(c, old.trip_id);
+  await c.env.DB.prepare('UPDATE contributions SET traveler_id=?, amount=?, date=?, note=? WHERE id=?').bind(f.traveler, f.amount, f.date, f.note, old.id).run();
+  return { ok: true };
+});
+route('DELETE', '/api/contributions/(\\d+)', async (c) => {
+  const old = await getOwned(c, 'contributions', c.params[0], 'Contribution');
+  await c.env.DB.prepare('DELETE FROM contributions WHERE id = ?').bind(old.id).run();
+  return { ok: true };
+});
+
+/* expenses */
 route('POST', '/api/trips/(\\d+)/expenses', async (c) => {
   const t = await getTrip(c, c.params[0]);
   const f = await expenseFields(c.env, c.body, t.id);
@@ -341,10 +371,10 @@ route('POST', '/api/trips/(\\d+)/expenses', async (c) => {
     await removeReceipt(c.env, rec?.file);
     throw e;
   }
-  return { expense: await expenseOut(c, id) };
+  return { id };
 });
 route('PUT', '/api/expenses/(\\d+)', async (c) => {
-  const old = await getExpense(c, c.params[0]);
+  const old = await getOwned(c, 'expenses', c.params[0], 'Expense');
   const f = await expenseFields(c.env, c.body, old.trip_id);
   const rec = c.body.receipt ? await saveReceipt(c.env, c.body.receipt) : null;
   const replace = c.body.receipt !== undefined; // object replaces, null removes, undefined keeps
@@ -360,10 +390,10 @@ route('PUT', '/api/expenses/(\\d+)', async (c) => {
     ]);
   } catch (e) { await removeReceipt(c.env, rec?.file); throw e; }
   if (replace) await removeReceipt(c.env, old.receipt_file);
-  return { expense: await expenseOut(c, old.id) };
+  return { ok: true };
 });
 route('DELETE', '/api/expenses/(\\d+)', async (c) => {
-  const e = await getExpense(c, c.params[0]);
+  const e = await getOwned(c, 'expenses', c.params[0], 'Expense');
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM expense_splits WHERE expense_id = ?').bind(e.id),
     c.env.DB.prepare('DELETE FROM expenses WHERE id = ?').bind(e.id),
@@ -372,7 +402,7 @@ route('DELETE', '/api/expenses/(\\d+)', async (c) => {
   return { ok: true };
 });
 route('GET', '/api/expenses/(\\d+)/receipt', async (c) => {
-  const e = await getExpense(c, c.params[0]);
+  const e = await getOwned(c, 'expenses', c.params[0], 'Expense');
   if (!e.receipt_file) throw new HttpError(404, 'No receipt');
   const obj = c.env.RECEIPTS ? await c.env.RECEIPTS.get(e.receipt_file) : null;
   if (!obj) throw new HttpError(404, 'Receipt file missing');
@@ -387,6 +417,9 @@ route('GET', '/api/expenses/(\\d+)/receipt', async (c) => {
 });
 
 /* ---------- entry ---------- */
+const jsonRes = (data, status = 200) => new Response(JSON.stringify(data), {
+  status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+});
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -408,20 +441,14 @@ export default {
           try { c.body = JSON.parse((await req.text()) || '{}'); } catch { throw bad('Invalid JSON'); }
         }
         const out = await r.handler(c);
-        if (out instanceof Response) return out;
-        const res = new Response(JSON.stringify(out), {
-          headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-        });
+        const res = out instanceof Response ? out : jsonRes(out);
         c.cookies.forEach((ck) => res.headers.append('Set-Cookie', ck));
         return res;
       }
       throw new HttpError(404, 'Not found');
     } catch (e) {
       if (!(e instanceof HttpError)) console.error(e);
-      const status = e instanceof HttpError ? e.status : 500;
-      return new Response(JSON.stringify({ error: e instanceof HttpError ? e.message : 'Something went wrong' }), {
-        status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-      });
+      return e instanceof HttpError ? jsonRes({ error: e.message }, e.status) : jsonRes({ error: 'Something went wrong' }, 500);
     }
   },
 };

@@ -53,6 +53,9 @@ writeFileSync(CONFIG, `${JSON.stringify(cfg, null, 2)}\n`);
 step('Creating database tables');
 const s = wrangler(['d1', 'execute', DB_NAME, '--remote', '--yes', '--file=worker/schema.sql']);
 if (s.code !== 0) fail('Schema creation failed.', s.out);
+// databases created before wallets existed lack this column; "duplicate column" just means it is already there
+const alter = wrangler(['d1', 'execute', DB_NAME, '--remote', '--yes', '--command=ALTER TABLE travelers ADD COLUMN is_wallet INTEGER NOT NULL DEFAULT 0']);
+if (alter.code !== 0 && !/duplicate column/i.test(alter.out)) fail('Database upgrade failed.', alter.out);
 
 step('Deploying');
 const d = wrangler(['deploy'], { inherit: true });
