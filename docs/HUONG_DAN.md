@@ -51,6 +51,7 @@ Travel Wallet giúp nhóm đi chơi quản lý **quỹ chung**, **chi tiêu chun
 - **Sửa / xoá chuyến đi, xuất báo cáo**: nút **⋯** góc phải tiêu đề chuyến đi.
 - **Thêm / đổi tên / xoá người đi**: tab Overview (bấm tên một người).
   - Không xoá được người đã góp quỹ, đã trả tiền, hoặc là người duy nhất của một khoản chi — hãy sửa các khoản đó trước.
+- **Trên điện thoại**: thanh dưới có *Overview / Activity / ＋ / Settle up / More*; nút ＋ mở nhanh "Expense" hoặc "Add money". Mở web bằng Safari/Chrome → *Thêm vào Màn hình chính* để dùng như một ứng dụng toàn màn hình. Kéo thanh nhỏ ở đầu cửa sổ xuống để đóng.
 - **Giao diện sáng/tối**: nút 🌙/☀️ trên thanh trên. **Esc** đóng cửa sổ.
 
 ## 5. Hỏi đáp

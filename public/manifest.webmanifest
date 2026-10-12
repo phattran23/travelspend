@@ -1,0 +1,10 @@
+{
+  "name": "Travel Wallet",
+  "short_name": "Wallet",
+  "description": "Group trip funds, shared expenses and settlements.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8f4",
+  "theme_color": "#1c1917",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

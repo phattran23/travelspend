@@ -30,6 +30,7 @@ const themeIcon = () => (document.documentElement.dataset.theme === 'dark' ? '�
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 function toast(msg) {
+  try { navigator.vibrate?.(8); } catch { /* unsupported */ }
   const el = document.createElement('div');
   el.className = 'toast'; el.textContent = msg;
   $('#toasts').append(el);
@@ -88,13 +89,20 @@ function openModal(html) {
   closeModal();
   const o = document.createElement('div');
   o.className = 'overlay'; o.id = 'overlay';
-  o.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+  o.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   o.addEventListener('mousedown', (e) => { if (e.target === o) closeModal(); });
+  const sheet = $('.modal', o); let y0 = null, dy = 0;
+  $('.grab', o).addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; sheet.style.transition = 'none'; }, { passive: true });
+  $('.grab', o).addEventListener('touchmove', (e) => { dy = Math.max(0, e.touches[0].clientY - y0); sheet.style.transform = `translateY(${dy}px)`; }, { passive: true });
+  $('.grab', o).addEventListener('touchend', () => {
+    sheet.style.transition = 'transform .2s'; if (dy > 90) closeModal(); else sheet.style.transform = ''; y0 = null; dy = 0;
+  });
   document.body.append(o);
-  $('input:not([type=hidden]):not([type=file]), textarea', o)?.focus();
+  document.body.classList.add('no-scroll');
+  $('input:not([type=hidden]):not([type=file]), textarea', o)?.focus({ preventScroll: true });
   return o;
 }
-const closeModal = () => $('#overlay')?.remove();
+const closeModal = () => { $('#overlay')?.remove(); document.body.classList.remove('no-scroll'); };
 const closeMenus = () => document.querySelectorAll('.menu').forEach((m) => m.remove());
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal(); closeMenus(); } });
 function confirmBox(title, text, ok = 'Delete') {
@@ -108,11 +116,12 @@ function confirmBox(title, text, ok = 'Delete') {
 /* ---------- routing ---------- */
 function render() {
   destroyCharts();
+  io?.disconnect();
   const app = $('#app');
   if (state.user === undefined) { app.innerHTML = '<div class="auth"><div class="skel" style="width:200px"></div></div>'; return; }
   if (!state.user) return renderAuth(app);
   app.innerHTML = `<header class="topbar"><div class="wrap">
-      <button class="brand" data-act="home"><span class="logo">₫</span>Travel Wallet</button>
+      <button class="brand" data-act="home"><span class="logo">₫</span><span class="brand-text">Travel Wallet</span></button>
       <div class="bar-actions"><button class="btn icon ghost" data-act="theme" aria-label="Toggle theme">${themeIcon()}</button>
         <button class="btn sm" data-act="logout">Sign out</button></div></div></header>
     <main><div class="wrap" id="view"><div class="stack"><div class="skel"></div><div class="skel"></div></div></div></main>`;
@@ -184,7 +193,7 @@ function renderTrip() {
     <section class="wallet">
       <div class="w-top"><span class="w-brand">TRAVEL WALLET</span><span class="w-chip"></span></div>
       <small>Wallet balance</small>
-      <div class="big ${L.balance < 0 ? 'neg' : ''}">${vnd(L.balance)}</div>
+      <div class="big ${L.balance < 0 ? 'neg' : ''}" data-count="${L.balance}">${vnd(L.balance)}</div>
       <small>${L.balance < 0 ? 'Overdrawn — add money or record who paid' : 'Left in the shared wallet'}</small>
       <div class="bar ${used > 100 ? 'over' : ''}"><i style="width:${Math.min(100, used)}%"></i></div>
       <div class="wallet-stats">
@@ -195,8 +204,59 @@ function renderTrip() {
     </section>
     <div class="tabs"><div class="seg full" role="tablist">${[['overview', 'Overview'], ['activity', 'Activity'], ['settle', 'Settle up']].map(([k, l]) =>
       `<button role="tab" data-act="tab" data-tab="${k}" aria-selected="${state.tab === k}">${l}</button>`).join('')}</div></div>
-    <div id="tab-body" class="stack"></div>`;
+    <div id="tab-body" class="stack"></div>
+    <nav class="tabbar" aria-label="Sections">
+      ${[['overview', 'Overview'], ['activity', 'Activity']].map(([k, l]) => `<button data-act="tab" data-tab="${k}" aria-selected="${state.tab === k}">${ICONS[k]}<span>${l}</span></button>`).join('')}
+      <button class="fab" data-act="add-menu" aria-label="Add expense or money">＋</button>
+      <button data-act="tab" data-tab="settle" aria-selected="${state.tab === 'settle'}">${ICONS.settle}<span>Settle up</span></button>
+      <button data-act="menu" aria-label="More">${ICONS.more}<span>More</span></button>
+    </nav>`;
   renderTab();
+  mountMini(d, L);
+  countUp(view);
+}
+const ICONS = {
+  overview: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9zm0 7h6v-5H4v5zm10 0h6V11h-6v9zm0-16v5h6V4h-6z"/></svg>',
+  activity: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>',
+  settle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10a2 2 0 100 4 2 2 0 000-4zm12 0a2 2 0 100 4 2 2 0 000-4zm-6 0a2 2 0 100 4 2 2 0 000-4z"/></svg>',
+};
+let io;
+// compact trip name + balance appears in the top bar once the wallet card scrolls away
+function mountMini(d, L) {
+  io?.disconnect();
+  const bar = $('.topbar'); if (!bar) return;
+  bar.classList.remove('scrolled'); $('.mini', bar)?.remove();
+  const mini = document.createElement('div');
+  mini.className = 'mini';
+  mini.innerHTML = `<b>${esc(d.trip.name)}</b><span class="${L.balance < 0 ? 'neg' : ''}">${vnd(L.balance)}</span>`;
+  $('.wrap', bar).append(mini);
+  const w = $('.wallet');
+  if (!w || !('IntersectionObserver' in window)) return;
+  io = new IntersectionObserver(([e]) => bar.classList.toggle('scrolled', !e.isIntersecting && e.boundingClientRect.top < 0), { rootMargin: '-56px 0px 0px 0px' });
+  io.observe(w);
+}
+function countUp(root) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  root.querySelectorAll('[data-count]').forEach((el) => {
+    const to = Number(el.dataset.count), t0 = performance.now();
+    if (!to) return;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 700), v = to * (1 - Math.pow(1 - k, 3));
+      el.textContent = vnd(v);
+      if (k < 1) requestAnimationFrame(step); else el.textContent = vnd(to);
+    };
+    requestAnimationFrame(step);
+  });
+}
+function sparkle() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (let i = 0; i < 16; i++) {
+    const el = document.createElement('span');
+    el.className = 'spark'; el.textContent = i % 3 ? '✦' : '·';
+    el.style.cssText = `left:${35 + Math.random() * 30}%;--dx:${(Math.random() - .5) * 240}px;--dy:${-(120 + Math.random() * 220)}px;animation-delay:${Math.random() * 120}ms;font-size:${12 + Math.random() * 14}px`;
+    document.body.append(el); setTimeout(() => el.remove(), 1400);
+  }
 }
 function renderTab() {
   document.querySelectorAll('[data-act="tab"]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
@@ -388,7 +448,7 @@ function moneyForm(c) {
   submitGuard($('#f', o), '#err', async () => {
     const body = { traveler_id: Number($('#m-who').value), amount: parseMoney($('#m-amt').value), date: $('#m-date').value, note: $('#m-note').value };
     if (c) await api('PUT', `/api/contributions/${c.id}`, body); else await api('POST', `/api/trips/${d.trip.id}/contributions`, body);
-    closeModal(); await loadTrip(d.trip.id, true); toast(c ? 'Saved' : 'Money added');
+    closeModal(); await loadTrip(d.trip.id, true); toast(c ? 'Saved' : 'Money added'); if (!c) sparkle();
   });
 }
 
@@ -453,7 +513,7 @@ function expenseForm(e, dup = false) {
       split_among: kind === 'personal' ? [Number($('#m-for').value)] : [...split] };
     if (receipt !== undefined) body.receipt = receipt;
     if (edit) await api('PUT', `/api/expenses/${e.id}`, body); else await api('POST', `/api/trips/${d.trip.id}/expenses`, body);
-    closeModal(); await loadTrip(d.trip.id, true); toast(edit ? 'Saved' : 'Expense added');
+    closeModal(); await loadTrip(d.trip.id, true); toast(edit ? 'Saved' : 'Expense added'); if (!edit) sparkle();
   });
 }
 
@@ -546,6 +606,7 @@ const actions = {
   theme: () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content', next === 'dark' ? '#0c0a08' : '#faf8f4');
     try { localStorage.setItem('ts_theme', next); } catch { /* ignore */ }
     document.querySelectorAll('[data-act="theme"]').forEach((b) => { b.textContent = themeIcon(); });
     if (state.d && state.tab === 'overview') drawCharts();
@@ -569,7 +630,18 @@ const actions = {
   'copy-plan': guard(async () => { await navigator.clipboard.writeText(planText(state.d, ledger(state.d))); toast('Plan copied'); }),
   'export-pdf': guard(async () => { closeMenus(); await exportPdf(); }),
   'export-xlsx': guard(async () => { closeMenus(); exportExcel(); toast('Excel downloaded'); }),
+  'add-menu': () => openModal(`<h2>Add</h2><div class="big-acts">
+      <button class="big-act" data-act="add-expense"><span>🧾</span><b>Expense</b><small>Record a payment</small></button>
+      <button class="big-act" data-act="add-money"><span>💰</span><b>Add money</b><small>Put funds in the wallet</small></button></div>`),
   menu: (el) => {
+    if (matchMedia('(max-width: 720px)').matches) {
+      const o = openModal(`<h2>${esc(state.d.trip.name)}</h2><div class="sheet-list">
+        <button data-act="edit-trip">Edit trip</button><button data-act="help">How it works</button>
+        <button data-act="export-pdf">Export PDF</button><button data-act="export-xlsx">Export Excel</button>
+        <button class="red" data-act="delete-trip">Delete trip</button></div>`);
+      o.addEventListener('click', (ev) => { if (ev.target.closest('[data-act]')) closeModal(); });
+      return;
+    }
     const had = $('.menu'); closeMenus(); if (had) return;
     const m = document.createElement('div'); m.className = 'menu';
     m.innerHTML = '<button data-act="edit-trip">Edit trip</button><button data-act="export-pdf">Export PDF</button><button data-act="export-xlsx">Export Excel</button><button class="red" data-act="delete-trip">Delete trip</button>';
