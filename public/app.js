@@ -2,12 +2,12 @@
 /* Travel Wallet front end — vanilla JS single-page app. */
 
 const CATS = {
-  lodging: { label: 'Lodging', icon: '🏨', color: '#5e5ce6' }, food: { label: 'Food', icon: '🍜', color: '#ff9f0a' },
-  transport: { label: 'Transport', icon: '🚕', color: '#0a84ff' }, flights: { label: 'Flights', icon: '✈️', color: '#bf5af2' },
-  activities: { label: 'Activities', icon: '🎟️', color: '#30d158' }, shopping: { label: 'Shopping', icon: '🛍️', color: '#ff375f' },
-  health: { label: 'Health', icon: '💊', color: '#ff453a' }, other: { label: 'Other', icon: '📌', color: '#8e8e93' },
+  lodging: { label: 'Lodging', icon: '🏨', color: '#6b5b95' }, food: { label: 'Food', icon: '🍜', color: '#c9a45c' },
+  transport: { label: 'Transport', icon: '🚕', color: '#3f6c8f' }, flights: { label: 'Flights', icon: '✈️', color: '#8d5a7a' },
+  activities: { label: 'Activities', icon: '🎟️', color: '#4f8a6a' }, shopping: { label: 'Shopping', icon: '🛍️', color: '#b4584f' },
+  health: { label: 'Health', icon: '💊', color: '#a33b3b' }, other: { label: 'Other', icon: '📌', color: '#8a8378' },
 };
-const AVATARS = ['#0a84ff', '#5e5ce6', '#ff9f0a', '#ff375f', '#30d158', '#bf5af2', '#64d2ff', '#ac8e68'];
+const AVATARS = ['#3f6c8f', '#6b5b95', '#b08d57', '#8d5a7a', '#4f8a6a', '#b4584f', '#5b7c8a', '#7d6b57'];
 const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, "Segoe UI", sans-serif';
 
 const state = { user: undefined, d: null, tab: 'overview', filter: 'all', q: '', mode: 'login' };
@@ -180,8 +180,9 @@ function renderTrip() {
   view.innerHTML = `
     <button class="btn ghost sm back" data-act="home">‹ Trips</button>
     <div class="trip-head"><div><h1>${esc(t.name)}</h1><p class="muted sm" style="margin-top:4px">${esc(meta)}</p></div>
-      <div style="position:relative"><button class="btn icon" data-act="menu" aria-label="More options">⋯</button></div></div>
+      <div class="bar-actions" style="position:relative"><button class="btn icon" data-act="help" aria-label="How it works">?</button><button class="btn icon" data-act="menu" aria-label="More options">⋯</button></div></div>
     <section class="wallet">
+      <div class="w-top"><span class="w-brand">TRAVEL WALLET</span><span class="w-chip"></span></div>
       <small>Wallet balance</small>
       <div class="big ${L.balance < 0 ? 'neg' : ''}">${vnd(L.balance)}</div>
       <small>${L.balance < 0 ? 'Overdrawn — add money or record who paid' : 'Left in the shared wallet'}</small>
@@ -205,17 +206,24 @@ function renderTab() {
 }
 
 function resultPill(n) {
-  return n > 0 ? `<span class="pill pos">Receives ${vnd(n)}</span>` : n < 0 ? `<span class="pill neg">Owes ${vnd(-n)}</span>` : '<span class="pill">Settled</span>';
+  return n > 0 ? `<span class="pill pos">To be refunded ${vnd(n)}</span>` : n < 0 ? `<span class="pill neg">To pay ${vnd(-n)}</span>` : '<span class="pill">Settled</span>';
 }
+const guideSteps = `<ol class="guide">
+  <li><b>Add money</b><span>Everyone puts funds into the shared wallet.</span></li>
+  <li><b>Add expenses</b><span>Pay from the wallet or from a pocket. Mark each as shared or personal.</span></li>
+  <li><b>Settle up</b><span>See who is <em class="pos">to be refunded</em> and who is <em class="neg">to pay</em>.</span></li></ol>
+  <p class="hint">Result = put in + paid out of pocket − your share of expenses.</p>`;
+const tipSeen = () => { try { return localStorage.getItem('tw_tip') === '1'; } catch { return false; } };
 function renderOverview(body) {
   const d = state.d, L = ledger(d);
-  body.innerHTML = `<div class="card"><div class="card-head"><h3>Travelers</h3><button class="link" data-act="add-traveler">＋ Add</button></div>
+  body.innerHTML = `${tipSeen() ? '' : `<div class="card tip"><div class="card-head"><h3>How it works</h3><button class="link" data-act="tip-hide">Got it</button></div>${guideSteps}</div>`}
+    <div class="card"><div class="card-head"><h3>Travelers</h3><button class="link" data-act="add-traveler">＋ Add</button></div>
       <div class="list">${d.travelers.map((p) => `
         <div class="member" data-act="member" data-id="${p.id}" style="cursor:pointer">${avatar(p.name)}
           <div><div class="name">${esc(p.name)}</div>
             <div class="sub"><span>Put in ${vnd(L.contributed[p.id])}</span><span>Share ${vnd(L.share[p.id])}</span>${L.paid[p.id] ? `<span>Paid ${vnd(L.paid[p.id])} out of pocket</span>` : ''}</div></div>
           <div class="res">${resultPill(L.net[p.id])}</div></div>`).join('')}</div>
-      <p class="hint" style="margin-top:6px">Receives = gets money back · Owes = used more than they put in</p></div>
+      <p class="hint" style="margin-top:6px"><b class="pos">To be refunded</b> = put in more than their share · <b class="neg">To pay</b> = share is more than they put in</p></div>
     ${d.expenses.length ? `<div class="two">
       <div class="card"><div class="card-head"><h3>By category</h3></div><div class="chart"><canvas id="c-cat" role="img" aria-label="Spending by category"></canvas></div><div class="legend" id="legend"></div></div>
       <div class="card"><div class="card-head"><h3>Per day</h3></div><div class="chart" style="height:260px"><canvas id="c-day" role="img" aria-label="Spending per day"></canvas></div></div></div>` : ''}`;
@@ -310,9 +318,11 @@ function renderSettle(body) {
       <div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="btn primary" data-act="copy-plan">Copy plan</button>
         <button class="btn" data-act="export-pdf">PDF</button><button class="btn" data-act="export-xlsx">Excel</button></div></div>
     <div class="card"><div class="card-head"><h3>Final balances</h3></div>
+      <div class="legend-row"><span class="pill pos">To be refunded</span><span class="muted sm">put in more than their share</span>
+        <span class="pill neg">To pay</span><span class="muted sm">share is more than they put in</span></div>
       <div class="result h"><span>Traveler</span><span>Put in</span><span>Share</span><span>Paid</span><span>Result</span></div>
       ${d.travelers.map((p) => `<div class="result"><span>${esc(p.name)}</span><span data-l="Put in">${vnd(L.contributed[p.id])}</span><span data-l="Share">${vnd(L.share[p.id])}</span>
-        <span data-l="Paid">${vnd(L.paid[p.id])}</span><span data-l="Result" class="${L.net[p.id] > 0 ? 'pos' : L.net[p.id] < 0 ? 'neg' : ''}"><b>${L.net[p.id] > 0 ? '+' : ''}${vnd(L.net[p.id])}</b></span></div>`).join('')}
+        <span data-l="Paid">${vnd(L.paid[p.id])}</span><span data-l="Result" class="rescell ${L.net[p.id] > 0 ? 'pos' : L.net[p.id] < 0 ? 'neg' : ''}"><b>${L.net[p.id] > 0 ? '+' : ''}${vnd(L.net[p.id])}</b><em>${L.net[p.id] > 0 ? 'To be refunded' : L.net[p.id] < 0 ? 'To pay' : 'Settled'}</em></span></div>`).join('')}
       <p class="hint">Result = put in + paid out of pocket − share of expenses</p></div>`;
 }
 
@@ -546,6 +556,8 @@ const actions = {
   'new-trip': () => tripForm(),
   demo: guard(async () => { const r = await api('POST', '/api/demo', {}); location.hash = `#/trip/${r.trip.id}`; }),
   close: closeModal,
+  help: () => openModal(`<h2>How it works</h2>${guideSteps}<div class="actions"><button class="btn primary" data-act="close">Got it</button></div>`),
+  'tip-hide': () => { try { localStorage.setItem('tw_tip', '1'); } catch { /* ignore */ } if (state.d) renderTab(); },
   tab: (el) => { state.tab = el.dataset.tab; renderTab(); },
   filter: (el) => { state.filter = el.dataset.f; renderActivity($('#tab-body')); },
   'add-expense': () => expenseForm(),

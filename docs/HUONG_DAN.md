@@ -15,14 +15,14 @@ Travel Wallet giúp nhóm đi chơi quản lý **quỹ chung**, **chi tiêu chun
 | **Expense** | Một khoản chi. Có thể **trả từ quỹ** hoặc **một người tự trả (tiền túi)** |
 | **Shared** | Khoản chi chia đều cho nhiều người được chọn |
 | **Personal** | Khoản chi chỉ của một người (VD: mua quà riêng) |
-| **Receives / Owes** | Cuối chuyến: ai được nhận lại tiền, ai còn nợ nhóm |
+| **To be refunded / To pay** | Cuối chuyến: ai được hoàn lại tiền, ai cần trả thêm cho nhóm |
 
 **Cách tính cho mỗi người**
 
 > Kết quả = *Đã góp quỹ* + *Đã tự trả bằng tiền túi* − *Phần chi tiêu của mình*
 
-- Kết quả **dương** → được nhận lại (**Receives**).
-- Kết quả **âm** → còn nợ nhóm (**Owes**).
+- Kết quả **dương** → **To be refunded** (được hoàn lại).
+- Kết quả **âm** → **To pay** (cần trả thêm).
 - Tiền còn trong quỹ được hoàn lại cho những người được nhận; web tự tạo **ít giao dịch nhất**.
 
 ## 2. Bắt đầu
